@@ -9,13 +9,13 @@ const signup = async (req, res) => {
         const existingUser = await User.findOne({ 
             $or: [
                 { email },
-                { username }
+                { email }
             ]
         });
 
         if (existingUser) {
             return res.status(400).json({ 
-                error: 'Bunday email yoki username mavjud' 
+                error: 'Bunday email yoki email mavjud' 
             });
         }
 
@@ -68,13 +68,13 @@ const signup = async (req, res) => {
 
 const signin = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password } = req.body;
 
-        const user = await User.findOne({ username });
+        const user = await User.findOne({ email });
         
         if (!user) {
             return res.status(401).json({ 
-                error: 'Noto\'g\'ri username yoki parol' 
+                error: 'Noto\'g\'ri email yoki parol' 
             });
         }
 
@@ -82,7 +82,7 @@ const signin = async (req, res) => {
         
         if (!isValidPassword) {
             return res.status(401).json({ 
-                error: 'Noto\'g\'ri username yoki parol' 
+                error: 'Noto\'g\'ri email yoki parol' 
             });
         }
 
@@ -119,7 +119,41 @@ const signin = async (req, res) => {
     }
 };
 
+const verifyToken = async (req, res) => {
+    try {
+        console.log('xey');
+        const { token } = req.body; // Tokenni so'rov bodydan olish (yoki headersdan)
+
+        if (!token) {
+            return res.status(400).json({
+                error: 'Token kiritilmagan',
+            });
+        }
+
+        // Tokenni tekshirish
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+
+        res.status(200).json({
+            message: 'Token tasdiqlandi',
+            userId: decoded.userId,
+        });
+    } catch (error) {
+        console.error('Tokenni tasdiqlashda xatolik:', error);
+
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ 
+                error: 'Token muddati tugagan' 
+            });
+        }
+
+        res.status(401).json({
+            error: 'Noto\'g\'ri token',
+        });
+    }
+};
+
 module.exports = {
     signup,
-    signin
+    signin,
+    verifyToken
 };

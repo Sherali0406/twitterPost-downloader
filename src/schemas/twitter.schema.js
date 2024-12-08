@@ -7,6 +7,11 @@ const TwitterSchema = new mongoose.Schema({
     hashtags: { type: [String] },
     mediaPaths: { type: [String] },
     profileImagePath: { type: String },
+    category: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'CategoryData', 
+        required: true
+    },
     createdAt: { type: Date, default: Date.now },
 });
 
