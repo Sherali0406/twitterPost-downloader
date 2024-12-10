@@ -9,8 +9,13 @@ const ObjectId = mongoose.Types.ObjectId;
 
 const router = express.Router();
 
-const BEARER_TOKEN = process.env.BEARER_TOKEN;
-const downloader = new TwitterDownloader(BEARER_TOKEN);
+const tokens = [
+    process.env.BEARER_TOKEN,
+    process.env.SAFARI_TWITTER_TOKEN,
+    process.env.KALI_TWITTER_TOKEN,
+  ];
+  
+  const downloader = new TwitterDownloader(tokens);
 
 
 router.post('/download', async (req, res) => {
