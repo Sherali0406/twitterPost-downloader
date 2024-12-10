@@ -4,11 +4,14 @@ const TwitterData = require('../schemas/twitter.schema');
 const authController = require('../controllers/authController');
 const { createCategory } = require('../controllers/categoryController');
 const categorySchema = require('../schemas/category.schema');
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 const router = express.Router();
 
 const BEARER_TOKEN = process.env.BEARER_TOKEN;
 const downloader = new TwitterDownloader(BEARER_TOKEN);
+
 
 router.post('/download', async (req, res) => {
     const { twitterUrl, title, hashtags,category } = req.body;
@@ -44,28 +47,47 @@ router.post('/download', async (req, res) => {
 
 router.get('/', async (req, res) => {
     try {
-        const { title, category } = req.query; // Extract title and category from query
+        const { title, category } = req.query; 
         const query = {};
 
-        // Add title filter if provided
         if (title) {
-            query.title = { $regex: title, $options: 'i' }; // Case-insensitive match
+            query.title = { $regex: title, $options: 'i' }; // Case-insensitive title search
         }
 
-        // Add category filter if provided
         if (category) {
-            query.category = category; // Assumes 'category' is a field in your Tweet model
+            // Find the category by its name
+            const categoryDoc = await categorySchema.findOne({ name: { $regex: category, $options: 'i' } });
+            if (categoryDoc) {
+                query.category = categoryDoc._id; // Use the category's ObjectId
+            } else {
+                return res.status(404).json({ error: 'Category not found' });
+            }
         }
 
-        // Fetch tweets from the database based on the constructed query
-        const tweets = await TwitterData.find(query);
+        const tweets = await TwitterData.find(query).populate('category'); // Populate category details
+        res.status(200).json(tweets);
+    } catch (error) {
+        console.error('Error fetching tweets:', error);
+        res.status(500).json({ error: 'An error occurred while fetching tweets.' });
+    }
+});
+
+router.get('/category', async (req, res) => {
+    try {
+        const { name } = req.query; 
+        const query = {};
+
+        if (name) {
+            query.name = { $regex: name, $options: 'i' };
+        }
+
+        const tweets = await categorySchema.find(query);
         res.status(200).json(tweets);
     } catch (error) {
         console.error('Xatolik tweetlarni olishda:', error);
         res.status(500).json({ error: 'Tweetlarni olishda xatolik yuz berdi.' });
     }
 });
-
 
 router.put('/:id', async (req, res) => {
     // Update tweet by _id
@@ -91,7 +113,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-console.log(id);
+        console.log(id);
 
         const deletedTweet = await TwitterData.findByIdAndDelete(id);
         if (!deletedTweet) {
@@ -122,23 +144,6 @@ router.post('/category', async (req, res) => {
     } catch (error) {
         console.error('Error creating category:', error.message);
         res.status(500).json({ error: 'Failed to create category.', details: error.message });
-    }
-});
-
-router.get('/category', async (req, res) => {
-    try {
-        const { name } = req.query; 
-        const query = {};
-
-        if (name) {
-            query.name = { $regex: name, $options: 'i' };
-        }
-
-        const tweets = await categorySchema.find(query);
-        res.status(200).json(tweets);
-    } catch (error) {
-        console.error('Xatolik tweetlarni olishda:', error);
-        res.status(500).json({ error: 'Tweetlarni olishda xatolik yuz berdi.' });
     }
 });
 
