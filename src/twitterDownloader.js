@@ -82,12 +82,8 @@ const CategoryData = require("./schemas/category.schema");
       await new Promise((resolve, reject) => {
         const writer = fs.createWriteStream(outputPath);
         response.data.pipe(writer);
-        writer.on("finish", () => {
-          console.log(`Fayl muvaffaqiyatli yuklandi: ${outputPath}`);
-        });
-        writer.on("error", (err) => {
-          console.error(`Faylni yuklashda xatolik: ${err.message}`);
-        });
+        writer.on("finish", resolve);
+        writer.on("error", reject);
       });
       console.log(`Downloaded media to: ${outputPath}`);
     });
