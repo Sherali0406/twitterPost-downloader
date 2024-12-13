@@ -129,24 +129,28 @@ const CategoryData = require("./schemas/category.schema");
   
       const mediaPaths = [];
       if (tweetInfo.includes?.media) {
+        let isFirstPhotoSaved = false; // Faoliyat flagi
         for (const [index, media] of tweetInfo.includes.media.entries()) {
           try {
             console.log(`Processing media ${index + 1} with type: ${media.type}`);
             
             let mediaUrl = null;
       
-            // Photo uchun URL aniqlash
             if (media.type === "photo") {
+              if (isFirstPhotoSaved) {
+                console.log(`Skipping photo ${index + 1} as the first photo is already saved.`);
+                continue;
+              }
               mediaUrl = media.url.includes("name=")
                 ? media.url.replace(/name=\w+$/, "name=orig")
                 : media.url;
               console.log(`Photo URL: ${mediaUrl}`);
+              isFirstPhotoSaved = true; // Birinchi rasm saqlandi
             } 
-            // Video uchun URL aniqlash
             else if (media.type === "video") {
               console.log(`Video media object: ${JSON.stringify(media)}`);
               
-              const variants = media.variants || []; // Agar video_info yo'q bo'lsa, variantsni tekshir
+              const variants = media.variants || [];
               if (variants.length > 0) {
                 const mp4Variants = variants.filter(
                   (variant) => variant.content_type === "video/mp4"
@@ -166,7 +170,6 @@ const CategoryData = require("./schemas/category.schema");
               console.warn(`Unsupported media type: ${media.type}`);
             }
       
-            // Agar mediaUrl topilmasa, jarayonni davom ettirish
             if (!mediaUrl) {
               console.warn(`Media ${index + 1} URL not found. Media type: ${media.type}`);
               continue;
@@ -180,7 +183,6 @@ const CategoryData = require("./schemas/category.schema");
       
             console.log(`Downloading media from URL: ${mediaUrl} to path: ${mediaPath}`);
             
-            // Media faylini yuklash
             await this.downloadImage(mediaUrl, mediaPath);
       
             if (!fs.existsSync(mediaPath)) {
@@ -189,15 +191,13 @@ const CategoryData = require("./schemas/category.schema");
             }
       
             console.log(`Media downloaded successfully: ${mediaPath}`);
-            mediaPaths.push(relativizePath(mediaPath)); // Media massiviga nisbiy yo'lni qo'shamiz
+            mediaPaths.push(relativizePath(mediaPath));
           } catch (mediaError) {
             console.warn(`Error downloading media ${index + 1}:`, mediaError.message);
           }
         }
       }
-      
-      
-  
+
       const tweetData = {
         tweetId,
         username,
