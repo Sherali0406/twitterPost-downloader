@@ -1,11 +1,9 @@
 const express = require('express');
-const TwitterDownloader = require('../twitterDownloader');
-const TwitterData = require('../schemas/twitter.schema');
 const authController = require('../controllers/authController');
 const { createCategory } = require('../controllers/categoryController');
+const TwitterDownloader = require('../twitterDownloader');
+const TwitterData = require('../schemas/twitter.schema');
 const categorySchema = require('../schemas/category.schema');
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
 
 const router = express.Router();
 
@@ -13,10 +11,13 @@ const tokens = [
     process.env.BEARER_TOKEN,
     process.env.SAFARI_TWITTER_TOKEN,
     process.env.KALI_TWITTER_TOKEN,
-  ];
-  
-  const downloader = new TwitterDownloader(tokens);
+];
+const downloader = new TwitterDownloader(tokens);
 
+const handleError = (res, error, defaultMessage) => {
+    console.error(defaultMessage, error);
+    res.status(500).json({ error: defaultMessage, details: error.message });
+};
 
 router.post('/download', async (req, res) => {
     const { twitterUrl, title, hashtags,category } = req.body;
@@ -30,7 +31,6 @@ router.post('/download', async (req, res) => {
     }
 
     try {
-        // Ensure hashtags is an array or set to empty if not provided
         const parsedHashtags = Array.isArray(hashtags) ? hashtags : [];
         const result = await downloader.downloadTweetMedia(twitterUrl, title, parsedHashtags,category);
         console.log('result of download: ',result);
@@ -46,34 +46,26 @@ router.post('/download', async (req, res) => {
         });
     } catch (error) {
         console.error('Error in /download:', error.message);
-        res.status(500).json({ error: 'Failed to download media.', details: error.message });
+        handleError(res, error, 'Error in /download');
     }
 });
 
 router.get('/', async (req, res) => {
+    const { title, category } = req.query;
+    const query = {};
+
+    if (title) query.title = { $regex: title, $options: 'i' };
+    if (category) {
+        const categoryDoc = await categorySchema.findOne({ name: { $regex: category, $options: 'i' } });
+        if (!categoryDoc) return res.status(404).json({ error: 'Category not found' });
+        query.category = categoryDoc._id;
+    }
+
     try {
-        const { title, category } = req.query; 
-        const query = {};
-
-        if (title) {
-            query.title = { $regex: title, $options: 'i' }; // Case-insensitive title search
-        }
-
-        if (category) {
-            // Find the category by its name
-            const categoryDoc = await categorySchema.findOne({ name: { $regex: category, $options: 'i' } });
-            if (categoryDoc) {
-                query.category = categoryDoc._id; // Use the category's ObjectId
-            } else {
-                return res.status(404).json({ error: 'Category not found' });
-            }
-        }
-
-        const tweets = await TwitterData.find(query).populate('category'); // Populate category details
+        const tweets = await TwitterData.find(query).populate('category');
         res.status(200).json(tweets);
     } catch (error) {
-        console.error('Error fetching tweets:', error);
-        res.status(500).json({ error: 'An error occurred while fetching tweets.' });
+        handleError(res, error, 'Error fetching tweets');
     }
 });
 
@@ -164,10 +156,8 @@ router.get('/tweets/:tweetId', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch tweet', details: error.message });
     }
 });
-
 router.post('/signup', authController.signup);
 router.post('/signin', authController.signin);
 router.post('/verify-token', authController.verifyToken);
-
 
 module.exports = router;

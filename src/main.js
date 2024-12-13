@@ -16,7 +16,7 @@ app.use(
 
 app.use(express.json());
 
-app.use('/downloads', express.static('src/downloads'));
+app.use("/downloads", express.static("src/downloads"));
 
 connectDB();
 

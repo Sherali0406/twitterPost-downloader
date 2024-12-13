@@ -2,67 +2,31 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../schemas/user.schema');
 
+const createToken = (userId, secret, expiresIn) => jwt.sign({ userId }, secret, { expiresIn });
+
 const signup = async (req, res) => {
     try {
         const { firstName, lastName, phoneNumber, email, username, password } = req.body;
 
-        const existingUser = await User.findOne({ 
-            $or: [
-                { email },
-                { email }
-            ]
-        });
-
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
         if (existingUser) {
-            return res.status(400).json({ 
-                error: 'Bunday email yoki email mavjud' 
-            });
+            return res.status(400).json({ error: 'Email or username already exists' });
         }
 
-        // Parolni hashlash
         const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await User.create({ firstName, lastName, phoneNumber, email, username, password: hashedPassword });
 
-        // Yangi foydalanuvchi yaratish
-        const user = await User.create({
-            firstName,
-            lastName, 
-            phoneNumber,
-            email,
-            username,
-            password: hashedPassword
-        });
-
-        // Access va Refresh tokenlarni yaratish
-        const accessToken = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_ACCESS_SECRET,
-            { expiresIn: '15m' }
-        );
-
-        const refreshToken = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_REFRESH_SECRET,
-            { expiresIn: '7d' }
-        );
+        const accessToken = createToken(user._id, process.env.JWT_ACCESS_SECRET, '15m');
+        const refreshToken = createToken(user._id, process.env.JWT_REFRESH_SECRET, '7d');
 
         res.status(201).json({
-            message: 'Foydalanuvchi muvaffaqiyatli yaratildi',
+            message: 'User created successfully',
             accessToken,
             refreshToken,
-            user: {
-                id: user._id,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.email,
-                username: user.username
-            }
+            user: { id: user._id, firstName, lastName, email, username },
         });
-
     } catch (error) {
-        console.error('Ro\'yxatdan o\'tishda xatolik:', error);
-        res.status(500).json({ 
-            error: 'Server xatosi yuz berdi' 
-        });
+        res.status(500).json({ error: 'Server error occurred' });
     }
 };
 
@@ -71,89 +35,35 @@ const signin = async (req, res) => {
         const { email, password } = req.body;
 
         const user = await User.findOne({ email });
-        
-        if (!user) {
-            return res.status(401).json({ 
-                error: 'Noto\'g\'ri email yoki parol' 
-            });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        
-        if (!isValidPassword) {
-            return res.status(401).json({ 
-                error: 'Noto\'g\'ri email yoki parol' 
-            });
-        }
-
-        const accessToken = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_ACCESS_SECRET,
-            { expiresIn: '15m' }
-        );
-
-        const refreshToken = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_REFRESH_SECRET,
-            { expiresIn: '7d' }
-        );
+        const accessToken = createToken(user._id, process.env.JWT_ACCESS_SECRET, '15m');
+        const refreshToken = createToken(user._id, process.env.JWT_REFRESH_SECRET, '7d');
 
         res.status(200).json({
-            message: 'Muvaffaqiyatli kirildi',
+            message: 'Successfully logged in',
             accessToken,
             refreshToken,
-            user: {
-                id: user._id,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.email,
-                username: user.username
-            }
+            user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email, username: user.username },
         });
-
     } catch (error) {
-        console.error('Kirishda xatolik:', error);
-        res.status(500).json({ 
-            error: 'Server xatosi yuz berdi' 
-        });
+        res.status(500).json({ error: 'Server error occurred' });
     }
 };
 
-const verifyToken = async (req, res) => {
+const verifyToken = (req, res) => {
     try {
-        console.log('xey');
-        const { token } = req.body; // Tokenni so'rov bodydan olish (yoki headersdan)
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token is required' });
 
-        if (!token) {
-            return res.status(400).json({
-                error: 'Token kiritilmagan',
-            });
-        }
-
-        // Tokenni tekshirish
         const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-
-        res.status(200).json({
-            message: 'Token tasdiqlandi',
-            userId: decoded.userId,
-        });
+        res.status(200).json({ message: 'Token verified', userId: decoded.userId });
     } catch (error) {
-        console.error('Tokenni tasdiqlashda xatolik:', error);
-
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ 
-                error: 'Token muddati tugagan' 
-            });
-        }
-
-        res.status(401).json({
-            error: 'Noto\'g\'ri token',
-        });
+        const message = error.name === 'TokenExpiredError' ? 'Token expired' : 'Invalid token';
+        res.status(401).json({ error: message });
     }
 };
 
-module.exports = {
-    signup,
-    signin,
-    verifyToken
-};
+module.exports = { signup, signin, verifyToken };
