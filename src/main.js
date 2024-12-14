@@ -8,7 +8,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "*",
+    origin: "https://www.sparklens.xyz",
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
